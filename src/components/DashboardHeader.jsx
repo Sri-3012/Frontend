@@ -20,16 +20,13 @@ const DashboardHeader = () => {
           <nav className="hidden md:flex items-center space-x-6">
             <a href="#" className="flex items-center space-x-2 text-blue-600 font-medium">
               <LineChart className="w-4 h-4" />
-              <span>Trading</span>
+              <span className="text-lg font-bold">Trading</span>
             </a>
             <a href="#" className="flex items-center space-x-2 text-gray-600 hover:text-gray-900">
               <History className="w-4 h-4" />
-              <span>History</span>
+              <span className="text-lg font-bold">History</span>
             </a>
-            <a href="#" className="flex items-center space-x-2 text-gray-600 hover:text-gray-900">
-              <Wallet className="w-4 h-4" />
-              <span>Portfolio</span>
-            </a>
+            
           </nav>
 
           {/* Account Info */}
