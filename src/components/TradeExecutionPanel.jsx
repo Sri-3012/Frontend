@@ -1,7 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { TrendingUp, TrendingDown, Zap, AlertTriangle } from "lucide-react"
+import { getForexPrices } from "@/lib/api"
 
 const TradeExecutionPanel = () => {
   const [tradeType, setTradeType] = useState("buy")
@@ -9,18 +10,44 @@ const TradeExecutionPanel = () => {
   const [amount, setAmount] = useState("10000")
   const [stopLoss, setStopLoss] = useState("")
   const [takeProfit, setTakeProfit] = useState("")
+  const [priceStatus, setPriceStatus] = useState({ isLive: true, price: null })
 
-  const currentPrice = 1.0845
-  const spread = 0.0002
+  useEffect(() => {
+    async function fetchCurrentPrice() {
+      try {
+        const data = await getForexPrices(["EUR/USD"]);
+        if (data && data["EUR/USD"]) {
+          const quote = data["EUR/USD"];
+          setPriceStatus({
+            price: quote.price,
+            isLive: quote.timestamp > Date.now() - 60000,
+            spread: Math.abs(quote.ask - quote.bid)
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching price:", error);
+        setPriceStatus(prev => ({ ...prev, isLive: false }));
+      }
+    }
+
+    fetchCurrentPrice();
+    const interval = setInterval(fetchCurrentPrice, 5000); // Update every 5 seconds
+    return () => clearInterval(interval);
+  }, []);
 
   const handleTrade = () => {
+    if (!priceStatus.isLive && orderType === "market") {
+      alert("Warning: Using indicative prices. Please confirm before proceeding.");
+    }
+    
     console.log("Executing trade:", {
       type: tradeType,
       orderType,
       amount,
       stopLoss,
       takeProfit,
-    })
+      priceStatus
+    });
     // Trade execution logic would go here
   }
 
@@ -28,10 +55,40 @@ const TradeExecutionPanel = () => {
     <div className="bg-white rounded-lg shadow-sm border">
       <div className="p-4 border-b bg-gray-50">
         <h2 className="text-lg font-semibold text-gray-900">Trade Execution</h2>
-        <p className="text-sm text-gray-500">EUR/USD</p>
+        <div className="flex items-center justify-between mt-1">
+          <p className="text-sm text-gray-500">EUR/USD</p>
+          {priceStatus.price && (
+            <div className="flex items-center">
+              <span className={`text-sm font-medium ${priceStatus.isLive ? 'text-gray-900' : 'text-gray-500'}`}>
+                {priceStatus.price.toFixed(4)}
+              </span>
+              {!priceStatus.isLive && (
+                <span className="ml-2 px-1.5 py-0.5 text-xs bg-gray-200 text-gray-600 rounded">
+                  Indicative
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+        {priceStatus.spread && (
+          <p className="text-xs text-gray-500 mt-1">
+            Spread: {(priceStatus.spread * 10000).toFixed(1)} pips
+          </p>
+        )}
       </div>
 
       <div className="p-4 space-y-4">
+        {!priceStatus.isLive && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+            <div className="flex items-center">
+              <AlertTriangle className="w-4 h-4 text-yellow-600 mr-2" />
+              <p className="text-sm text-yellow-700">
+                Using indicative prices. Live market data unavailable.
+              </p>
+            </div>
+          </div>
+        )}
+        
         {/* AI Signal Alert */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
           <div className="flex items-center space-x-2">
@@ -51,7 +108,11 @@ const TradeExecutionPanel = () => {
           >
             <TrendingUp className="h-4 w-4 mx-auto mb-1" />
             BUY
-            <div className="text-sm font-normal">{(currentPrice + spread).toFixed(4)}</div>
+            <div className="text-sm font-normal">
+              {priceStatus.price 
+                ? (priceStatus.price + (priceStatus.spread ? priceStatus.spread/2 : 0)).toFixed(4)
+                : "---"}
+            </div>
           </button>
           <button
             onClick={() => setTradeType("sell")}
@@ -61,7 +122,11 @@ const TradeExecutionPanel = () => {
           >
             <TrendingDown className="h-4 w-4 mx-auto mb-1" />
             SELL
-            <div className="text-sm font-normal">{(currentPrice - spread).toFixed(4)}</div>
+            <div className="text-sm font-normal">
+              {priceStatus.price 
+                ? (priceStatus.price - (priceStatus.spread ? priceStatus.spread/2 : 0)).toFixed(4)
+                : "---"}
+            </div>
           </button>
         </div>
 

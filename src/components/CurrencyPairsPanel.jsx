@@ -25,7 +25,8 @@ const CurrencyPairsPanel = ({ selectedPair, onPairSelect, className = "" }) => {
             symbol,
             price: parseFloat(info.price),
             change: parseFloat(info.change),
-            changePercent: parseFloat(info.percent_change)
+            changePercent: parseFloat(info.percent_change),
+            isLive: info.timestamp > Date.now() - 60000 // Consider data live if less than 1 minute old
           }));
           setPairs(formattedPairs);
           setError(null);
@@ -33,7 +34,7 @@ const CurrencyPairsPanel = ({ selectedPair, onPairSelect, className = "" }) => {
         setLoading(false);
       } catch (error) {
         console.error("Error fetching prices:", error);
-        setError("Failed to fetch currency pairs data");
+        setError("Unable to fetch live prices. Showing indicative rates.");
         setLoading(false);
       }
     }
@@ -116,15 +117,22 @@ const CurrencyPairsPanel = ({ selectedPair, onPairSelect, className = "" }) => {
             >
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-sm font-medium text-gray-900">{pair.symbol}</h3>
-                  <p className="text-2xl font-semibold text-gray-900">
+                  <h3 className="text-sm font-medium text-gray-900">
+                    {pair.symbol}
+                    {!pair.isLive && (
+                      <span className="ml-2 px-1.5 py-0.5 text-xs bg-gray-200 text-gray-600 rounded">
+                        Indicative
+                      </span>
+                    )}
+                  </h3>
+                  <p className={`text-2xl font-semibold ${pair.isLive ? 'text-gray-900' : 'text-gray-500'}`}>
                     {formatPrice(pair.price)}
                   </p>
                 </div>
                 <div className="text-right">
                   <div className={`flex items-center space-x-1 ${
                     pair.change >= 0 ? "text-green-600" : "text-red-600"
-                  }`}>
+                  } ${!pair.isLive ? 'opacity-50' : ''}`}>
                     {pair.change >= 0 ? (
                       <TrendingUp className="w-4 h-4" />
                     ) : (
@@ -136,7 +144,7 @@ const CurrencyPairsPanel = ({ selectedPair, onPairSelect, className = "" }) => {
                   </div>
                   <p className={`text-sm ${
                     pair.change >= 0 ? "text-green-600" : "text-red-600"
-                  }`}>
+                  } ${!pair.isLive ? 'opacity-50' : ''}`}>
                     {pair.change >= 0 ? "+" : ""}{formatPrice(pair.change)}
                   </p>
                 </div>
