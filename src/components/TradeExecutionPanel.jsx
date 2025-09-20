@@ -25,8 +25,8 @@ const TradeExecutionPanel = () => {
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border h-full">
-      <div className="p-4 border-b">
+    <div className="bg-white rounded-lg shadow-sm border">
+      <div className="p-4 border-b bg-gray-50">
         <h2 className="text-lg font-semibold text-gray-900">Trade Execution</h2>
         <p className="text-sm text-gray-500">EUR/USD</p>
       </div>

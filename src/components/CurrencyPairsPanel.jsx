@@ -1,81 +1,153 @@
-"use client"
+﻿
+"use client";
 
-import { useState, useEffect } from "react"
-import { TrendingUp, TrendingDown } from "lucide-react"
+import { useState, useEffect } from "react";
+import { TrendingUp, TrendingDown, Search, Star } from "lucide-react";
+import { getForexPrices } from "@/lib/api";
 
-const CurrencyPairsPanel = () => {
-  const [pairs, setPairs] = useState([
-    { symbol: "EUR/USD", price: 1.0845, change: 0.0012, changePercent: 0.11 },
-    { symbol: "GBP/USD", price: 1.2634, change: -0.0023, changePercent: -0.18 },
-    { symbol: "USD/JPY", price: 149.82, change: 0.45, changePercent: 0.3 },
-    { symbol: "AUD/USD", price: 0.6523, change: 0.0008, changePercent: 0.12 },
-    { symbol: "USD/CAD", price: 1.3756, change: -0.0015, changePercent: -0.11 },
-    { symbol: "NZD/USD", price: 0.5987, change: 0.0034, changePercent: 0.57 },
-    { symbol: "USD/CHF", price: 0.8934, change: -0.0021, changePercent: -0.23 },
-    { symbol: "EUR/GBP", price: 0.8589, change: 0.0007, changePercent: 0.08 },
-  ])
+const PAIRS = [
+  "EUR/USD", "GBP/USD", "USD/JPY", "AUD/USD", 
+  "USD/CAD", "NZD/USD", "USD/CHF", "EUR/GBP"
+];
 
-  const [selectedPair, setSelectedPair] = useState("EUR/USD")
+const CurrencyPairsPanel = ({ selectedPair, onPairSelect, className = "" }) => {
+  const [selectedCategory, setSelectedCategory] = useState("Popular");
+  const [pairs, setPairs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setPairs((prevPairs) =>
-        prevPairs.map((pair) => ({
-          ...pair,
-          price: pair.price + (Math.random() - 0.5) * 0.01,
-          change: (Math.random() - 0.5) * 0.01,
-          changePercent: (Math.random() - 0.5) * 1,
-        })),
-      )
-    }, 2000)
+    async function fetchPrices() {
+      try {
+        const data = await getForexPrices(PAIRS);
+        if (data) {
+          const formattedPairs = Object.entries(data).map(([symbol, info]) => ({
+            symbol,
+            price: parseFloat(info.price),
+            change: parseFloat(info.change),
+            changePercent: parseFloat(info.percent_change)
+          }));
+          setPairs(formattedPairs);
+          setError(null);
+        }
+        setLoading(false);
+      } catch (error) {
+        console.error("Error fetching prices:", error);
+        setError("Failed to fetch currency pairs data");
+        setLoading(false);
+      }
+    }
 
-    return () => clearInterval(interval)
-  }, [])
+    fetchPrices();
+    const interval = setInterval(fetchPrices, 10000); // Update every 10 seconds
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const formatPrice = (price) => {
+    return price.toFixed(4);
+  };
+
+  const formatPercent = (percent) => {
+    return percent.toFixed(2);
+  };
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border h-full">
+    <div className={`bg-white rounded-xl shadow-sm border border-gray-200 ${className}`}>
       <div className="p-4 border-b">
-        <h2 className="text-lg font-semibold text-gray-900">Currency Pairs</h2>
-        <p className="text-sm text-gray-500">Live market prices</p>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Currency Pairs</h2>
+            <p className="text-sm text-gray-500">Live market prices</p>
+            {pairs.length > 0 && pairs[0].timestamp && (
+              <p className="text-xs text-gray-400 mt-0.5">
+                Last updated: {new Date(pairs[0].timestamp).toLocaleTimeString()}
+              </p>
+            )}
+          </div>
+          <div className="flex items-center space-x-2">
+            <button className="p-1.5 rounded-md hover:bg-gray-100">
+              <Search className="w-4 h-4 text-gray-500" />
+            </button>
+            <button className="p-1.5 rounded-md hover:bg-gray-100">
+              <Star className="w-4 h-4 text-gray-500" />
+            </button>
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          <button 
+            onClick={() => setSelectedCategory("Popular")}
+            className={`px-3 py-1.5 text-sm font-medium rounded-md ${selectedCategory === "Popular" ? "bg-blue-50 text-blue-600" : "text-gray-600 hover:bg-gray-50"}`}
+          >
+            Popular
+          </button>
+          <button 
+            onClick={() => setSelectedCategory("Major")}
+            className={`px-3 py-1.5 text-sm font-medium rounded-md ${selectedCategory === "Major" ? "bg-blue-50 text-blue-600" : "text-gray-600 hover:bg-gray-50"}`}
+          >
+            Major
+          </button>
+          <button 
+            onClick={() => setSelectedCategory("Minor")}
+            className={`px-3 py-1.5 text-sm font-medium rounded-md ${selectedCategory === "Minor" ? "bg-blue-50 text-blue-600" : "text-gray-600 hover:bg-gray-50"}`}
+          >
+            Minor
+          </button>
+        </div>
       </div>
 
-      <div className="p-2 space-y-1 overflow-y-auto max-h-[calc(100vh-12rem)]">
-        {pairs.map((pair) => (
-          <div
-            key={pair.symbol}
-            onClick={() => setSelectedPair(pair.symbol)}
-            className={`p-3 rounded-md cursor-pointer transition-colors ${
-              selectedPair === pair.symbol ? "bg-blue-50 border border-blue-200" : "hover:bg-gray-50"
-            }`}
-          >
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="font-medium text-gray-900">{pair.symbol}</p>
-                <p className="text-lg font-semibold text-gray-900">{pair.price.toFixed(4)}</p>
-              </div>
-              <div className="text-right">
-                <div className={`flex items-center ${pair.change >= 0 ? "text-green-600" : "text-red-600"}`}>
-                  {pair.change >= 0 ? (
-                    <TrendingUp className="h-3 w-3 mr-1" />
-                  ) : (
-                    <TrendingDown className="h-3 w-3 mr-1" />
-                  )}
-                  <span className="text-sm font-medium">
-                    {pair.changePercent >= 0 ? "+" : ""}
-                    {pair.changePercent.toFixed(2)}%
-                  </span>
+      <div className="overflow-y-auto" style={{ height: "calc(100% - 116px)" }}>
+        {loading ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-600 border-t-transparent"></div>
+          </div>
+        ) : error ? (
+          <div className="flex items-center justify-center h-full text-red-500 p-4 text-center">
+            {error}
+          </div>
+        ) : (
+          pairs.map((pair) => (
+            <div
+              key={pair.symbol}
+              onClick={() => onPairSelect(pair.symbol)}
+              className={`px-4 py-3 border-b last:border-b-0 cursor-pointer transition-colors ${
+                selectedPair === pair.symbol ? "bg-blue-50/50" : "hover:bg-gray-50"
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-medium text-gray-900">{pair.symbol}</h3>
+                  <p className="text-2xl font-semibold text-gray-900">
+                    {formatPrice(pair.price)}
+                  </p>
                 </div>
-                <p className={`text-sm ${pair.change >= 0 ? "text-green-600" : "text-red-600"}`}>
-                  {pair.change >= 0 ? "+" : ""}
-                  {pair.change.toFixed(4)}
-                </p>
+                <div className="text-right">
+                  <div className={`flex items-center space-x-1 ${
+                    pair.change >= 0 ? "text-green-600" : "text-red-600"
+                  }`}>
+                    {pair.change >= 0 ? (
+                      <TrendingUp className="w-4 h-4" />
+                    ) : (
+                      <TrendingDown className="w-4 h-4" />
+                    )}
+                    <span className="text-sm font-medium">
+                      {pair.change >= 0 ? "+" : ""}{formatPercent(pair.changePercent)}%
+                    </span>
+                  </div>
+                  <p className={`text-sm ${
+                    pair.change >= 0 ? "text-green-600" : "text-red-600"
+                  }`}>
+                    {pair.change >= 0 ? "+" : ""}{formatPrice(pair.change)}
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          ))
+        )}
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default CurrencyPairsPanel
+export default CurrencyPairsPanel;
+
