@@ -98,18 +98,21 @@ export async function getForexPrices(pairs: string[]): Promise<ForexData | null>
       throw new Error('Invalid pairs array provided');
     }
 
-    // Format pairs for API (e.g., "EURUSD,GBPUSD")
+    // Format pairs for TraderMade API (e.g., "EURUSD,GBPUSD")
     const formattedPairs = pairs.map(pair => pair.replace('/', '')).join(',');
     console.log('Fetching forex prices for:', formattedPairs);
     
-    // Use our Next.js API route instead of calling TraderMade directly
-    const response = await fetch(`/api/forex?pairs=${formattedPairs}`, {
+    const url = `${BASE_URL}/live?currency=${formattedPairs}&api_key=${API_KEY}`;
+    console.log('API URL:', url);
+    
+    const response = await fetch(url, {
       method: 'GET',
       headers: {
-        'Accept': 'application/json'
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
       }
     });
-    
+
     const responseText = await response.text();
     console.log('Raw API Response:', responseText);
 
@@ -137,8 +140,8 @@ export async function getForexPrices(pairs: string[]): Promise<ForexData | null>
       throw new Error('Invalid API response format: missing quotes');
     }
 
-    if (typeof data.quotes !== 'object' || Object.keys(data.quotes).length === 0) {
-      console.error('Empty or invalid quotes in response:', data.quotes);
+    if (!Array.isArray(data.quotes) || data.quotes.length === 0) {
+      console.error('Empty or invalid quotes array in response:', data.quotes);
       throw new Error('Invalid API response format: invalid quotes structure');
     }
 
@@ -147,30 +150,38 @@ export async function getForexPrices(pairs: string[]): Promise<ForexData | null>
     const timestamp = Date.now();
 
     // Process each currency pair
-    Object.entries(data.quotes).forEach(([symbol, quote]) => {
-      // Validate quote object
+    data.quotes.forEach((quote) => {
       if (!quote || typeof quote !== 'object') {
-        console.warn(`Invalid quote data for ${symbol}:`, quote);
+        console.warn('Invalid quote data:', quote);
         return;
       }
 
-      const price = safeParseFloat(quote.price);
+      const symbol = `${quote.base_currency}/${quote.quote_currency}`;
+      const price = safeParseFloat(quote.mid); // Use mid price as the main price
+      const bid = safeParseFloat(quote.bid);
+      const ask = safeParseFloat(quote.ask);
       
-      // Store in cache for change calculation
-      updateRatesCache(symbol, price, timestamp);
-      const { change, percent_change } = calculateChanges(symbol, price);
+      // Only process if we have valid price data
+      if (isValidNumber(price)) {
+        // Store in cache for change calculation
+        updateRatesCache(symbol, price, timestamp);
+        const { change, percent_change } = calculateChanges(symbol, price);
 
-      transformedData[symbol] = {
-        price: price,
-        bid: quote.bid,
-        ask: quote.ask,
-        change: change,
-        percent_change: percent_change,
-        timestamp: quote.timestamp
-      };
+        transformedData[symbol] = {
+          price,
+          bid,
+          ask,
+          change,
+          percent_change,
+          timestamp: safeParseFloat(quote.timestamp, timestamp)
+        };
+      } else {
+        console.warn(`Skipping invalid price data for ${symbol}:`, quote);
+      }
     });
 
-    return transformedData;
+    // Only return data if we have at least one valid entry
+    return Object.keys(transformedData).length > 0 ? transformedData : null;
   } catch (error) {
     console.error('Error fetching forex prices:', error);
     return null;
@@ -179,6 +190,10 @@ export async function getForexPrices(pairs: string[]): Promise<ForexData | null>
 
 export async function getHistoricalData(symbol: string, interval: string = 'daily') {
   try {
+    if (!symbol) {
+      throw new Error('Invalid symbol provided');
+    }
+
     // For historical data
     const date = new Date();
     date.setDate(date.getDate() - 7); // Get data for last 7 days
@@ -188,54 +203,35 @@ export async function getHistoricalData(symbol: string, interval: string = 'dail
     const response = await fetch(
       `${BASE_URL}/timeseries?api_key=${API_KEY}&currency=${symbol.replace('/', '')}&start_date=${startDate}&end_date=${endDate}&interval=${interval}&format=json`
     );
+
+    if (!response.ok) {
+      throw new Error(`Historical data request failed: ${response.status} ${response.statusText}`);
+    }
+
     const data = await response.json();
     
-    if (!data.quotes) {
-      throw new Error('Failed to fetch historical data');
+    if (!data.quotes || !Array.isArray(data.quotes)) {
+      throw new Error('Invalid historical data format');
     }
 
     return {
       symbol,
       data: data.quotes.map((quote: any) => ({
         timestamp: new Date(quote.date).getTime(),
-        open: quote.open,
-        high: quote.high,
-        low: quote.low,
-        close: quote.close
-      }))
+        open: safeParseFloat(quote.open),
+        high: safeParseFloat(quote.high),
+        low: safeParseFloat(quote.low),
+        close: safeParseFloat(quote.close)
+      })).filter(item => 
+        isValidNumber(item.timestamp) && 
+        isValidNumber(item.open) && 
+        isValidNumber(item.high) && 
+        isValidNumber(item.low) && 
+        isValidNumber(item.close)
+      )
     };
   } catch (error) {
     console.error('Error fetching historical data:', error);
     return null;
   }
-}
-
-export async function getPortfolioData() {
-  // This would typically come from your backend
-  return {
-    totalEquity: 125847.32,
-    freeMargin: 98234.56,
-    usedMargin: 27612.76,
-    marginLevel: 455.8,
-    allocation: [
-      { pair: "EUR/USD", amount: 43975, percentage: 35 },
-      { pair: "GBP/USD", amount: 31462, percentage: 25 },
-      { pair: "USD/JPY", amount: 25169, percentage: 20 },
-      { pair: "AUD/USD", amount: 15102, percentage: 12 },
-      { pair: "Others", amount: 10139, percentage: 8 },
-    ],
-    performance: [
-      { month: "Jan", profit: 2400 },
-      { month: "Feb", profit: 1800 },
-      { month: "Mar", profit: 3200 },
-      { month: "Apr", profit: 2800 },
-      { month: "May", profit: 3600 },
-      { month: "Jun", profit: 2900 },
-    ],
-    risk: {
-      level: "Moderate",
-      maxDrawdown: -3.2,
-      sharpeRatio: 1.84
-    }
-  };
 }
