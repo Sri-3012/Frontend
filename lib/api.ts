@@ -124,16 +124,27 @@ const defaultPrices: { [key: string]: { price: number; bid: number; ask: number 
   'EUR/GBP': { price: 0.8589, bid: 0.8587, ask: 0.8591 }
 };
 
-export async function getForexPrices(pairs: string[]): Promise<ForexData | null> {
+// Rate limiting
+let lastRequestTime = 0;
+const MIN_REQUEST_INTERVAL = 2000; // 2 seconds between requests
+
+export async function getForexPrices(pairs: string[]): Promise<ForexData> {
   try {
     if (!Array.isArray(pairs) || pairs.length === 0) {
       console.error('Invalid pairs array:', pairs);
-      throw new Error('Invalid pairs array provided');
+      return getFallbackPrices(pairs);
+    }
+
+    // Check if we need to wait due to rate limiting
+    const now = Date.now();
+    const timeSinceLastRequest = now - lastRequestTime;
+    if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
+      console.log('Rate limit cooldown, using cached/default prices');
+      return getFallbackPrices(pairs);
     }
 
     // Format pairs for API (e.g., "EURUSD,GBPUSD")
     const formattedPairs = pairs.map(pair => pair.replace('/', '')).join(',');
-    console.log('Fetching forex prices for:', formattedPairs);
     
     // Use our Next.js API route instead of calling TraderMade directly
     const response = await fetch(`/api/forex?pairs=${formattedPairs}`, {
@@ -143,35 +154,28 @@ export async function getForexPrices(pairs: string[]): Promise<ForexData | null>
       }
     });
     
-    const responseText = await response.text();
-    console.log('Raw API Response:', responseText);
+    lastRequestTime = Date.now();
 
     if (!response.ok) {
-      console.error('API Error Response:', {
-        status: response.status,
-        statusText: response.statusText,
-        headers: Object.fromEntries(response.headers.entries()),
-        body: responseText
-      });
-      throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+      if (response.status === 429) {
+        console.log('Rate limit reached, using default prices');
+        return getFallbackPrices(pairs);
+      }
+      console.warn('API request failed, using default prices');
+      return getFallbackPrices(pairs);
     }
     
     let data: TraderMadeResponse;
     try {
+      const responseText = await response.text();
       data = JSON.parse(responseText);
-      console.log('Parsed API Response:', data);
     } catch (error) {
       console.error('Failed to parse API response:', error);
       return getFallbackPrices(pairs);
     }
 
-    if (!data || !data.quotes) {
-      console.error('Invalid API response structure:', data);
-      return getFallbackPrices(pairs);
-    }
-
-    if (typeof data.quotes !== 'object' || Object.keys(data.quotes).length === 0) {
-      console.error('Empty or invalid quotes in response:', data.quotes);
+    if (!data?.quotes?.length) {
+      console.warn('No valid quotes in response, using default prices');
       return getFallbackPrices(pairs);
     }
 
@@ -210,7 +214,7 @@ export async function getForexPrices(pairs: string[]): Promise<ForexData | null>
     return transformedData;
   } catch (error) {
     console.error('Error fetching forex prices:', error);
-    return null;
+    return getFallbackPrices(pairs);
   }
 }
 

@@ -3,7 +3,20 @@ import { NextResponse } from 'next/server';
 const API_KEY = 'WTwIpag6HWAbz2L3VlWH';
 const BASE_URL = 'https://marketdata.tradermade.com/api/v1';
 
+// Simple rate limiting
+let lastRequestTime = 0;
+const MIN_REQUEST_INTERVAL = 2000; // 2 seconds between requests
+
 export async function GET(request: Request) {
+  // Check rate limit
+  const now = Date.now();
+  if (now - lastRequestTime < MIN_REQUEST_INTERVAL) {
+    return NextResponse.json(
+      { error: 'Rate limit exceeded. Please wait before making another request.' },
+      { status: 429 }
+    );
+  }
+  lastRequestTime = now;
   try {
     const { searchParams } = new URL(request.url);
     const pairs = searchParams.get('pairs');

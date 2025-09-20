@@ -9,7 +9,6 @@ import { Card } from "@/components/ui/card";
 const PortfolioSummary = () => {
   const [portfolioData, setPortfolioData] = useState([]);
   const [performanceData, setPerformanceData] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState([]);
   const [lastUpdate, setLastUpdate] = useState(null);
   const [error, setError] = useState(null);
@@ -38,10 +37,7 @@ const PortfolioSummary = () => {
     
     const updatePortfolioData = async () => {
       try {
-        setLoading(true);
         setError(null);
-        console.log('Updating portfolio data...');
-        
         const forexData = await getForexPrices([
           "EURUSD", "GBPUSD", "USDJPY", "AUDUSD"
         ]);
@@ -140,25 +136,17 @@ const PortfolioSummary = () => {
         }).reverse();
 
         setPerformanceData(last6Months);
-        setLoading(false);
       } catch (error) {
         console.error('Error updating portfolio:', error);
         const errorMessage = error.message.includes('API request failed')
           ? 'Could not connect to forex data service. Please check your internet connection.'
           : 'Failed to load portfolio data';
         setError(errorMessage);
-        setLoading(false);
       }
     };
 
+    // Only fetch data once when component mounts
     updatePortfolioData();
-    portfolioInterval = setInterval(updatePortfolioData, 10000);
-
-    return () => {
-      if (portfolioInterval) {
-        clearInterval(portfolioInterval);
-      }
-    };
   }, []);
 
   return (
@@ -275,16 +263,6 @@ const PortfolioSummary = () => {
         </>
       )}
 
-      {loading && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg shadow-xl">
-            <div className="flex items-center space-x-3">
-              <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-              <p className="text-lg">Updating data...</p>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

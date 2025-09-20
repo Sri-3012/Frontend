@@ -2,11 +2,15 @@
 
 import React, { useState } from 'react';
 import DashboardHeader from "@/src/components/DashboardHeader";
-import CurrencyPairsPanel from "@/src/components/CurrencyPairsPanel";
+import dynamic from 'next/dynamic';
 import TradingChart from "@/src/components/TradingChart";
 import TradeExecutionPanel from "@/src/components/TradeExecutionPanel";
 import TradeHistoryTable from "@/src/components/TradeHistoryTable";
 import PortfolioSummary from "@/src/components/PortfolioSummary";
+
+const CurrencyPairsPanel = dynamic(() => import("@/src/components/CurrencyPairsPanel.jsx"), {
+  ssr: false
+});
 
 export default function Home() {
   const [selectedPair, setSelectedPair] = useState("EUR/USD");
